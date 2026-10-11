@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GreenPulse — Connexion</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="auth-page">
+  <div class="auth-logo">
+    <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+      <circle cx="32" cy="32" r="32" fill="#E8F5E9"/>
+      <path d="M32 12C32 12 16 22 16 36C16 44.837 23.163 52 32 52C40.837 52 48 44.837 48 36C48 22 32 12 32 12Z" fill="#43A047"/>
+      <path d="M32 24L32 48" stroke="#E8F5E9" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M32 36L24 28" stroke="#E8F5E9" stroke-width="2" stroke-linecap="round"/>
+      <path d="M32 32L40 24" stroke="#E8F5E9" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+    <h1>GreenPulse</h1>
+    <p>Ensemble pour Sousse</p>
+  </div>
+
+  <div class="auth-card">
+    <h2>Connexion</h2>
+
+    <div class="input-group">
+      <label for="email">Adresse email</label>
+      <input type="email" id="email" placeholder="votre@email.com" autocomplete="email">
+    </div>
+
+    <div class="input-group">
+      <label for="password">Mot de passe</label>
+      <div class="input-password-wrapper">
+        <input type="password" id="password" placeholder="Votre mot de passe" autocomplete="current-password">
+        <button class="toggle-password" id="togglePwd" type="button">
+          <span class="material-icons" style="font-size:20px" id="eyeIcon">visibility</span>
+        </button>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="loginBtn" style="margin-top:8px">
+      Se connecter
+    </button>
+  </div>
+
+  <p class="auth-footer">
+    Pas encore de compte ? <a href="register.html">Créer un compte</a>
+  </p>
+</div>
+
+<script type="module">
+  import { auth } from './firebase-config.js';
+  import { signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { showNotification } from './js/notifications.js';
+
+  onAuthStateChanged(auth, (user) => {
+    if (user) window.location.href = 'index.html';
+  });
+
+  const togglePwd = document.getElementById('togglePwd');
+  const pwdInput = document.getElementById('password');
+  const eyeIcon = document.getElementById('eyeIcon');
+  togglePwd.addEventListener('click', () => {
+    if (pwdInput.type === 'password') {
+      pwdInput.type = 'text';
+      eyeIcon.textContent = 'visibility_off';
+    } else {
+      pwdInput.type = 'password';
+      eyeIcon.textContent = 'visibility';
+    }
+  });
+
+  const loginBtn = document.getElementById('loginBtn');
+  loginBtn.addEventListener('click', async () => {
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+
+    if (!email || !password) {
+      showNotification('Veuillez remplir tous les champs', 'error');
+      return;
+    }
+
+    loginBtn.disabled = true;
+    loginBtn.textContent = 'Connexion...';
+
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      window.location.href = 'index.html';
+    } catch (err) {
+      showNotification('Email ou mot de passe incorrect', 'error');
+      loginBtn.disabled = false;
+      loginBtn.textContent = 'Se connecter';
+    }
+  });
+</script>
+</body>
+</html>

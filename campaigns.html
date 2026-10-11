@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GreenPulse — Campagnes</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="page-wrapper">
+  <div class="page-header">
+    <button class="back-btn" onclick="window.location.href='index.html'">
+      <span class="material-icons">arrow_back</span>
+    </button>
+    <h1>Campagnes</h1>
+  </div>
+
+  <div class="filter-bar" id="filterBar">
+    <button class="filter-pill active" data-cat="Tous">Tous</button>
+    <button class="filter-pill" data-cat="Nettoyage">Nettoyage</button>
+    <button class="filter-pill" data-cat="Sensibilisation">Sensibilisation</button>
+    <button class="filter-pill" data-cat="Plantation">Plantation</button>
+  </div>
+
+  <div id="campaignsList" style="padding:0 16px 24px;display:flex;flex-direction:column;gap:14px">
+    <div style="text-align:center;padding:40px 0;color:var(--text-muted);font-size:14px">
+      <span class="material-icons" style="font-size:40px;display:block;margin-bottom:8px;opacity:0.4">hourglass_empty</span>
+      Chargement...
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { auth, db } from './firebase-config.js';
+  import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { collection, getDocs, doc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { showNotification } from './js/notifications.js';
+
+  let currentUser = null;
+  let allCampaigns = [];
+  let activeFilter = 'Tous';
+
+  onAuthStateChanged(auth, (user) => {
+    if (!user) { window.location.href = 'login.html'; return; }
+    currentUser = user;
+    loadCampaigns();
+  });
+
+  const categoryConfig = {
+    'Nettoyage':       { bg: '#E8F5E9', iconBg: '#C8E6C9', iconColor: '#2E7D32', icon: 'cleaning_services', tagColor: '#2E7D32', tagBg: '#E8F5E9' },
+    'Sensibilisation': { bg: '#E3F2FD', iconBg: '#BBDEFB', iconColor: '#1565C0', icon: 'record_voice_over', tagColor: '#1565C0', tagBg: '#E3F2FD' },
+    'Plantation':      { bg: '#FFF8E1', iconBg: '#FFE0B2', iconColor: '#E65100', icon: 'park', tagColor: '#E65100', tagBg: '#FFF8E1' }
+  };
+
+  function formatDate(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
+  function renderCampaigns(campaigns) {
+    const list = document.getElementById('campaignsList');
+    if (campaigns.length === 0) {
+      list.innerHTML = `<div style="text-align:center;padding:40px 0;color:var(--text-muted);font-size:14px">
+        <span class="material-icons" style="font-size:40px;display:block;margin-bottom:8px;opacity:0.4">search_off</span>
+        Aucune campagne disponible
+      </div>`;
+      return;
+    }
+
+    list.innerHTML = campaigns.map(c => {
+      const cfg = categoryConfig[c.categorie] || categoryConfig['Nettoyage'];
+      const isJoined = c.participants && currentUser && c.participants.includes(currentUser.uid);
+      const count = c.participants ? c.participants.length : 0;
+      return `
+        <div class="campaign-card" style="border-left:4px solid ${cfg.iconColor}">
+          <div class="campaign-top">
+            <div class="campaign-icon-circle" style="background:${cfg.iconBg}">
+              <span class="material-icons" style="color:${cfg.iconColor};font-size:20px">${cfg.icon}</span>
+            </div>
+            <div class="campaign-info">
+              <h3>${c.nom}</h3>
+              <p class="campaign-meta">
+                <span class="material-icons" style="font-size:13px;vertical-align:middle">location_on</span>
+                ${c.lieu} &nbsp;·&nbsp;
+                <span class="material-icons" style="font-size:13px;vertical-align:middle">calendar_today</span>
+                ${formatDate(c.date)} à ${c.heure}
+              </p>
+            </div>
+          </div>
+          ${c.description ? `<p style="font-size:13px;color:var(--text-muted);line-height:1.5">${c.description}</p>` : ''}
+          <div class="campaign-tags">
+            <span class="tag-pill" style="background:${cfg.tagBg};color:${cfg.tagColor}">${c.categorie}</span>
+            ${c.maxParticipants ? `<span class="tag-pill" style="background:#F5F5F5;color:var(--text-muted)">Max ${c.maxParticipants} pers.</span>` : ''}
+          </div>
+          <div class="campaign-bottom">
+            <span class="participants-count">
+              <span class="material-icons" style="font-size:15px;vertical-align:middle">group</span>
+              <span id="count-${c.id}">${count}</span> participant${count !== 1 ? 's' : ''}
+            </span>
+            <button class="btn-join" id="btn-${c.id}"
+              ${isJoined ? 'disabled' : ''}
+              onclick="joinCampaign('${c.id}', this)"
+              style="${isJoined ? 'background:#E0E0E0;color:#9E9E9E;cursor:default' : ''}">
+              ${isJoined ? 'Inscrit ✓' : 'REJOINDRE'}
+            </button>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  window.joinCampaign = async (campaignId, btn) => {
+    if (!currentUser) return;
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '...';
+    try {
+      await updateDoc(doc(db, 'campaigns', campaignId), {
+        participants: arrayUnion(currentUser.uid)
+      });
+      btn.textContent = 'Inscrit ✓';
+      btn.style.background = '#E0E0E0';
+      btn.style.color = '#9E9E9E';
+      btn.style.cursor = 'default';
+      const countEl = document.getElementById('count-' + campaignId);
+      if (countEl) countEl.textContent = parseInt(countEl.textContent) + 1;
+      showNotification('Inscription confirmée !', 'success');
+    } catch {
+      showNotification('Erreur. Réessayez.', 'error');
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  };
+
+  async function loadCampaigns() {
+    try {
+      const snap = await getDocs(collection(db, 'campaigns'));
+      allCampaigns = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      filterAndRender();
+    } catch (err) {
+      document.getElementById('campaignsList').innerHTML = `
+        <div style="text-align:center;padding:40px 0;color:var(--error);font-size:14px">
+          Erreur de chargement. Vérifiez votre connexion.
+        </div>`;
+    }
+  }
+
+  function filterAndRender() {
+    const filtered = activeFilter === 'Tous'
+      ? allCampaigns
+      : allCampaigns.filter(c => c.categorie === activeFilter);
+    renderCampaigns(filtered);
+  }
+
+  document.getElementById('filterBar').addEventListener('click', (e) => {
+    const pill = e.target.closest('.filter-pill');
+    if (!pill) return;
+    document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+    activeFilter = pill.dataset.cat;
+    filterAndRender();
+  });
+</script>
+</body>
+</html>

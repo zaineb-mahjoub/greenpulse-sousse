@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GreenPulse Sousse</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .home-body {
+      max-width: 480px;
+      margin: 0 auto;
+      min-height: 100vh;
+      background: #F4F7F4;
+      display: flex;
+      flex-direction: column;
+    }
+    .nav-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      padding: 20px 16px;
+      flex: 1;
+    }
+    .nav-card {
+      border-radius: var(--border-radius);
+      padding: 28px 16px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      cursor: pointer;
+      transition: transform var(--transition), box-shadow var(--transition);
+      text-align: center;
+      box-shadow: var(--shadow);
+      border: none;
+      text-decoration: none;
+    }
+    .nav-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.12); }
+    .nav-card:active { transform: scale(0.97); }
+    .nav-icon {
+      width: 60px;
+      height: 60px;
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 4px;
+    }
+    .nav-icon .material-icons { font-size: 30px; }
+    .nav-card h3 { font-size: 15px; font-weight: 700; color: var(--text-dark); margin: 0; }
+    .nav-card p { font-size: 12px; color: var(--text-muted); margin: 0; line-height: 1.4; }
+    .home-footer {
+      text-align: center;
+      padding: 12px;
+      font-size: 11px;
+      color: #B0BEC5;
+    }
+  </style>
+</head>
+<body>
+<div class="home-body">
+  <header class="app-header">
+    <div class="header-logo">
+      <svg width="28" height="28" viewBox="0 0 64 64" fill="none">
+        <circle cx="32" cy="32" r="32" fill="#E8F5E9"/>
+        <path d="M32 10C32 10 16 21 16 36C16 44.837 23.163 52 32 52C40.837 52 48 44.837 48 36C48 21 32 10 32 10Z" fill="#43A047"/>
+        <path d="M32 22L32 48" stroke="#E8F5E9" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M32 36L24 28" stroke="#E8F5E9" stroke-width="2" stroke-linecap="round"/>
+        <path d="M32 32L40 24" stroke="#E8F5E9" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span>GreenPulse</span>
+    </div>
+    <div class="header-right">
+      <span class="header-greeting" id="userGreeting">Bonjour...</span>
+      <button class="icon-btn" id="logoutBtn" title="Se déconnecter">
+        <span class="material-icons" style="font-size:22px;color:var(--text-muted)">logout</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="nav-grid">
+    <a class="nav-card" href="report.html" style="background:var(--green-light)">
+      <div class="nav-icon" style="background:#C8E6C9">
+        <span class="material-icons" style="color:#2E7D32">photo_camera</span>
+      </div>
+      <h3>Signaler</h3>
+      <p>Signalez un déchet illégal</p>
+    </a>
+
+    <a class="nav-card" href="dashboard.html" style="background:var(--blue-light)">
+      <div class="nav-icon" style="background:#BBDEFB">
+        <span class="material-icons" style="color:#1565C0">bar_chart</span>
+      </div>
+      <h3>Statistiques</h3>
+      <p>Tableau de bord</p>
+    </a>
+
+    <a class="nav-card" href="awareness.html" style="background:var(--amber-light)">
+      <div class="nav-icon" style="background:#FFE0B2">
+        <span class="material-icons" style="color:#E65100">eco</span>
+      </div>
+      <h3>Sensibilisation</h3>
+      <p>Environnement de Sousse</p>
+    </a>
+
+    <a class="nav-card" href="campaigns.html" style="background:var(--pink-light)">
+      <div class="nav-icon" style="background:#F8BBD0">
+        <span class="material-icons" style="color:#880E4F">groups</span>
+      </div>
+      <h3>Campagnes</h3>
+      <p>Rejoindre une action</p>
+    </a>
+  </div>
+
+  <div class="home-footer">GreenPulse Sousse &copy; 2026</div>
+</div>
+
+<script type="module">
+  import { auth, db } from './firebase-config.js';
+  import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) { window.location.href = 'login.html'; return; }
+    try {
+      const snap = await getDoc(doc(db, 'users', user.uid));
+      if (snap.exists()) {
+        document.getElementById('userGreeting').textContent = `Bonjour, ${snap.data().prenom}`;
+      }
+    } catch {}
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await signOut(auth);
+    window.location.href = 'login.html';
+  });
+</script>
+</body>
+</html>

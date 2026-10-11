@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GreenPulse — Créer un compte</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="auth-page">
+  <div class="auth-logo">
+    <svg width="56" height="56" viewBox="0 0 64 64" fill="none">
+      <circle cx="32" cy="32" r="32" fill="#E8F5E9"/>
+      <path d="M32 12C32 12 16 22 16 36C16 44.837 23.163 52 32 52C40.837 52 48 44.837 48 36C48 22 32 12 32 12Z" fill="#43A047"/>
+      <path d="M32 24L32 48" stroke="#E8F5E9" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M32 36L24 28" stroke="#E8F5E9" stroke-width="2" stroke-linecap="round"/>
+      <path d="M32 32L40 24" stroke="#E8F5E9" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+    <h1>GreenPulse</h1>
+    <p>Rejoignez la communauté</p>
+  </div>
+
+  <div class="auth-card">
+    <h2>Créer un compte</h2>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="input-group" style="margin-bottom:0">
+        <label for="prenom">Prénom</label>
+        <input type="text" id="prenom" placeholder="Prénom" autocomplete="given-name">
+      </div>
+      <div class="input-group" style="margin-bottom:0">
+        <label for="nom">Nom</label>
+        <input type="text" id="nom" placeholder="Nom" autocomplete="family-name">
+      </div>
+    </div>
+
+    <div class="input-group" style="margin-top:16px">
+      <label for="email">Adresse email</label>
+      <input type="email" id="email" placeholder="votre@email.com" autocomplete="email">
+    </div>
+
+    <div class="input-group">
+      <label for="password">Mot de passe</label>
+      <div class="input-password-wrapper">
+        <input type="password" id="password" placeholder="Min. 8 caractères" autocomplete="new-password">
+        <button class="toggle-password" id="togglePwd1" type="button">
+          <span class="material-icons" style="font-size:20px" id="eye1">visibility</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="input-group">
+      <label for="confirmPassword">Confirmer le mot de passe</label>
+      <div class="input-password-wrapper">
+        <input type="password" id="confirmPassword" placeholder="Répéter le mot de passe" autocomplete="new-password">
+        <button class="toggle-password" id="togglePwd2" type="button">
+          <span class="material-icons" style="font-size:20px" id="eye2">visibility</span>
+        </button>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="registerBtn" style="margin-top:8px">
+      Créer mon compte
+    </button>
+  </div>
+
+  <p class="auth-footer">
+    Déjà un compte ? <a href="login.html">Se connecter</a>
+  </p>
+</div>
+
+<script type="module">
+  import { auth, db } from './firebase-config.js';
+  import { createUserWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { showNotification } from './js/notifications.js';
+
+  onAuthStateChanged(auth, (user) => {
+    if (user) window.location.href = 'index.html';
+  });
+
+  const makeToggle = (btnId, inputId, iconId) => {
+    document.getElementById(btnId).addEventListener('click', () => {
+      const inp = document.getElementById(inputId);
+      const icon = document.getElementById(iconId);
+      if (inp.type === 'password') { inp.type = 'text'; icon.textContent = 'visibility_off'; }
+      else { inp.type = 'password'; icon.textContent = 'visibility'; }
+    });
+  };
+  makeToggle('togglePwd1', 'password', 'eye1');
+  makeToggle('togglePwd2', 'confirmPassword', 'eye2');
+
+  document.getElementById('registerBtn').addEventListener('click', async () => {
+    const prenom = document.getElementById('prenom').value.trim();
+    const nom = document.getElementById('nom').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+    const btn = document.getElementById('registerBtn');
+
+    if (!prenom || !nom || !email || !password || !confirmPassword) {
+      showNotification('Veuillez remplir tous les champs', 'error'); return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      showNotification('Adresse email invalide', 'error'); return;
+    }
+    if (password.length < 8) {
+      showNotification('Le mot de passe doit contenir au moins 8 caractères', 'error'); return;
+    }
+    if (password !== confirmPassword) {
+      showNotification('Les mots de passe ne correspondent pas', 'error'); return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Création...';
+
+    try {
+      const { user } = await createUserWithEmailAndPassword(auth, email, password);
+      await setDoc(doc(db, 'users', user.uid), {
+        prenom, nom, email,
+        createdAt: new Date().toISOString()
+      });
+      window.location.href = 'index.html';
+    } catch (err) {
+      if (err.code === 'auth/email-already-in-use') {
+        showNotification('Cet email est déjà utilisé', 'error');
+      } else {
+        showNotification('Erreur lors de la création du compte', 'error');
+      }
+      btn.disabled = false;
+      btn.textContent = 'Créer mon compte';
+    }
+  });
+</script>
+</body>
+</html>

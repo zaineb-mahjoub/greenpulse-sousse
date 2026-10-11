@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GreenPulse — Dashboard</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    #heatmap { height: 260px; border-radius: 14px; overflow: hidden; }
+    .section-block { padding: 0 16px; margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+<div class="page-wrapper">
+  <div class="page-header">
+    <button class="back-btn" onclick="window.location.href='index.html'">
+      <span class="material-icons">arrow_back</span>
+    </button>
+    <h1>Tableau de bord</h1>
+  </div>
+
+  <!-- KPI GRID -->
+  <div style="padding:16px 16px 0">
+    <div class="section-title" style="padding:0 0 8px">
+      <span class="material-icons" style="color:var(--green-accent)">insights</span>
+      Vue d'ensemble
+    </div>
+  </div>
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <span class="material-icons kpi-icon" style="color:#43A047">description</span>
+      <div class="kpi-value skeleton" id="kpi-total" style="width:60px;height:34px;border-radius:8px"></div>
+      <div class="kpi-label">Total rapports</div>
+    </div>
+    <div class="kpi-card">
+      <span class="material-icons kpi-icon" style="color:#1565C0">today</span>
+      <div class="kpi-value skeleton" id="kpi-month" style="width:60px;height:34px;border-radius:8px"></div>
+      <div class="kpi-label">Ce mois</div>
+    </div>
+    <div class="kpi-card">
+      <span class="material-icons kpi-icon" style="color:#E65100">check_circle</span>
+      <div class="kpi-value skeleton" id="kpi-rate" style="width:60px;height:34px;border-radius:8px"></div>
+      <div class="kpi-label">Taux résolution</div>
+    </div>
+    <div class="kpi-card">
+      <span class="material-icons kpi-icon" style="color:#6A1B9A">people</span>
+      <div class="kpi-value skeleton" id="kpi-users" style="width:60px;height:34px;border-radius:8px"></div>
+      <div class="kpi-label">Citoyens inscrits</div>
+    </div>
+    <div class="kpi-card">
+      <span class="material-icons kpi-icon" style="color:#880E4F">emoji_events</span>
+      <div class="kpi-value skeleton" id="kpi-campaigns" style="width:60px;height:34px;border-radius:8px"></div>
+      <div class="kpi-label">Campagnes</div>
+    </div>
+    <div class="kpi-card">
+      <span class="material-icons kpi-icon" style="color:#C62828">location_on</span>
+      <div class="kpi-value skeleton" id="kpi-zone" style="width:80px;height:34px;border-radius:8px"></div>
+      <div class="kpi-label">Zone + signalée</div>
+    </div>
+  </div>
+
+  <!-- HEATMAP -->
+  <div class="section-block">
+    <div class="section-title">
+      <span class="material-icons" style="color:#E53935">whatshot</span>
+      Zones à forte densité
+    </div>
+    <div id="heatmap"></div>
+  </div>
+
+  <!-- CHARTS -->
+  <div class="section-block">
+    <div class="section-title">
+      <span class="material-icons" style="color:var(--green-accent)">bar_chart</span>
+      Évolution des signalements
+    </div>
+  </div>
+  <div class="chart-card">
+    <p style="font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:12px">Rapports par semaine</p>
+    <canvas id="chartBar"></canvas>
+  </div>
+  <div class="chart-card">
+    <p style="font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:12px">Statut des rapports</p>
+    <canvas id="chartDoughnut"></canvas>
+  </div>
+  <div class="chart-card" style="margin-bottom:24px">
+    <p style="font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:12px">Nouveaux citoyens par mois</p>
+    <canvas id="chartLine"></canvas>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet.heat/dist/leaflet-heat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script type="module">
+  import { auth, db } from './firebase-config.js';
+  import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  onAuthStateChanged(auth, (user) => {
+    if (!user) { window.location.href = 'login.html'; return; }
+    loadDashboard();
+  });
+
+  function setKPI(id, value) {
+    const el = document.getElementById(id);
+    el.classList.remove('skeleton');
+    el.style.width = '';
+    el.style.height = '';
+    el.textContent = value;
+  }
+
+  async function loadDashboard() {
+    try {
+      const [reportsSnap, usersSnap, campaignsSnap] = await Promise.all([
+        getDocs(collection(db, 'reports')),
+        getDocs(collection(db, 'users')),
+        getDocs(collection(db, 'campaigns'))
+      ]);
+
+      const reports = reportsSnap.docs.map(d => d.data());
+      const users = usersSnap.docs.map(d => d.data());
+
+      const total = reports.length;
+      const nowMonth = new Date().toISOString().slice(0, 7);
+      const thisMonth = reports.filter(r => r.timestamp && r.timestamp.startsWith(nowMonth)).length;
+      const resolved = reports.filter(r => r.statut === 'résolu').length;
+      const rate = total > 0 ? Math.round((resolved / total) * 100) : 0;
+
+      const zoneCounts = {};
+      reports.forEach(r => { if (r.quartier) zoneCounts[r.quartier] = (zoneCounts[r.quartier] || 0) + 1; });
+      const topZone = Object.keys(zoneCounts).sort((a, b) => zoneCounts[b] - zoneCounts[a])[0] || 'N/A';
+
+      setKPI('kpi-total', total);
+      setKPI('kpi-month', thisMonth);
+      setKPI('kpi-rate', rate + '%');
+      setKPI('kpi-users', usersSnap.size);
+      setKPI('kpi-campaigns', campaignsSnap.size);
+      setKPI('kpi-zone', topZone.length > 8 ? topZone.slice(0, 8) + '…' : topZone);
+
+      // HEATMAP
+      const map = L.map('heatmap').setView([35.8245, 10.6346], 12);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+      }).addTo(map);
+
+      const heatPoints = reports
+        .filter(r => r.latitude && r.longitude)
+        .map(r => [r.latitude, r.longitude, 1.0]);
+
+      if (heatPoints.length > 0) {
+        L.heatLayer(heatPoints, { radius: 25, blur: 15, maxZoom: 17 }).addTo(map);
+      } else {
+        reports.forEach(r => {
+          if (r.latitude && r.longitude) {
+            L.circleMarker([r.latitude, r.longitude], {
+              radius: 8, fillColor: '#43A047', color: '#2E7D32', weight: 1, fillOpacity: 0.8
+            }).addTo(map);
+          }
+        });
+      }
+
+      // CHARTS
+      buildCharts(reports, users);
+
+    } catch (err) {
+      console.error('Dashboard error:', err);
+    }
+  }
+
+  function buildCharts(reports, users) {
+    const weeks = [];
+    const weekCounts = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i * 7);
+      const weekStart = new Date(d);
+      weekStart.setDate(d.getDate() - d.getDay());
+      weeks.push(`S${7 - i}`);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 7);
+      weekCounts.push(reports.filter(r => {
+        if (!r.timestamp) return false;
+        const t = new Date(r.timestamp);
+        return t >= weekStart && t < weekEnd;
+      }).length);
+    }
+
+    new Chart(document.getElementById('chartBar'), {
+      type: 'bar',
+      data: {
+        labels: weeks,
+        datasets: [{ label: 'Rapports', data: weekCounts,
+          backgroundColor: '#A5D6A7', borderColor: '#43A047', borderWidth: 2, borderRadius: 6 }]
+      },
+      options: { responsive: true, plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+    });
+
+    const enAttente = reports.filter(r => r.statut === 'en_attente').length;
+    const enCours = reports.filter(r => r.statut === 'en_cours').length;
+    const resolu = reports.filter(r => r.statut === 'résolu').length;
+    const total = reports.length;
+
+    new Chart(document.getElementById('chartDoughnut'), {
+      type: 'doughnut',
+      data: {
+        labels: ['En attente', 'En cours', 'Résolu'],
+        datasets: [{ data: [enAttente || (total > 0 ? total : 1), enCours, resolu],
+          backgroundColor: ['#FFE082', '#90CAF9', '#A5D6A7'],
+          borderColor: ['#FFC107', '#1976D2', '#43A047'], borderWidth: 2 }]
+      },
+      options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+    });
+
+    const months = [];
+    const monthCounts = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const key = d.toISOString().slice(0, 7);
+      months.push(d.toLocaleString('fr', { month: 'short' }));
+      monthCounts.push(users.filter(u => u.createdAt && u.createdAt.startsWith(key)).length);
+    }
+
+    new Chart(document.getElementById('chartLine'), {
+      type: 'line',
+      data: {
+        labels: months,
+        datasets: [{ label: 'Inscrits', data: monthCounts, borderColor: '#43A047',
+          backgroundColor: 'rgba(67,160,71,0.1)', fill: true, tension: 0.4,
+          pointBackgroundColor: '#43A047', pointRadius: 5 }]
+      },
+      options: { responsive: true, plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+    });
+  }
+</script>
+</body>
+</html>

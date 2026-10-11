@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GreenPulse — Signaler un déchet</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    #map { height: 55vh; border-radius: 14px; overflow: hidden; margin-bottom: 12px; }
+    .upload-zone {
+      border: 2.5px dashed #A5D6A7;
+      border-radius: 16px;
+      padding: 48px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      background: var(--green-light);
+      transition: border-color var(--transition), background var(--transition);
+      text-align: center;
+    }
+    .upload-zone:hover { border-color: var(--green-accent); background: #d4edda; }
+    .upload-zone .material-icons { font-size: 52px; color: var(--green-accent); }
+    .upload-zone h3 { font-size: 16px; font-weight: 600; color: var(--text-dark); }
+    .upload-zone p { font-size: 13px; color: var(--text-muted); }
+    .preview-container { position: relative; }
+    .preview-container img { width: 100%; border-radius: 14px; max-height: 300px; object-fit: cover; display: block; }
+    .change-photo-btn {
+      background: none; border: none; cursor: pointer;
+      color: var(--green-accent); font-family: 'Poppins', sans-serif;
+      font-size: 13px; font-weight: 500; margin-top: 10px;
+      display: flex; align-items: center; gap: 4px; padding: 0;
+    }
+    .change-photo-btn .material-icons { font-size: 16px; }
+    .coords-display {
+      font-size: 13px; color: var(--text-muted); margin-top: 8px;
+      display: flex; align-items: center; gap: 6px; padding: 10px 14px;
+      background: var(--green-light); border-radius: 10px;
+    }
+    .coords-display .material-icons { font-size: 16px; color: var(--green-accent); }
+    .step-content { padding: 20px 16px; }
+    .step-content h2 { font-size: 20px; font-weight: 700; margin-bottom: 6px; color: var(--text-dark); }
+    .step-content .subtitle { font-size: 14px; color: var(--text-muted); margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+<div class="page-wrapper">
+  <!-- STEP HEADER -->
+  <div class="step-header">
+    <button class="back-btn" id="backBtn">
+      <span class="material-icons">arrow_back</span>
+    </button>
+    <span class="step-indicator" id="stepIndicator">Étape 1 / 2</span>
+    <button class="action-btn" id="actionBtn" disabled>Suivant →</button>
+  </div>
+
+  <!-- STEP 1 -->
+  <div id="step1" class="step-content">
+    <h2>Photographiez le déchet</h2>
+    <p class="subtitle">Prenez une photo claire du déchet à signaler</p>
+    <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none">
+    <div class="upload-zone" id="uploadZone">
+      <span class="material-icons">photo_camera</span>
+      <h3>Appuyez pour prendre une photo</h3>
+      <p>ou choisir depuis la galerie</p>
+    </div>
+    <div class="preview-container" id="previewZone" style="display:none">
+      <img id="photoPreview" src="" alt="Aperçu">
+      <button class="change-photo-btn" id="changePhotoBtn">
+        <span class="material-icons">refresh</span> Changer la photo
+      </button>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div id="step2" class="step-content" style="display:none">
+    <h2>Localisez le déchet</h2>
+    <p class="subtitle">Touchez la carte pour épingler l'emplacement exact</p>
+    <div id="map"></div>
+    <div class="coords-display" id="coordsDisplay" style="display:none">
+      <span class="material-icons">location_on</span>
+      <span id="coordsText">En attente...</span>
+    </div>
+  </div>
+
+  <!-- SUCCESS SCREEN -->
+  <div id="successScreen" class="success-screen" style="display:none">
+    <div class="success-checkmark">
+      <span class="material-icons">check_circle</span>
+    </div>
+    <h2>Rapport envoyé !</h2>
+    <p>Merci pour votre contribution à Sousse</p>
+    <p class="countdown" id="countdown">Retour à l'accueil dans 3s...</p>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="module">
+  import { auth, db } from './firebase-config.js';
+  import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { addDoc, collection, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { showNotification } from './js/notifications.js';
+
+  let currentStep = 1;
+  let selectedFile = null;
+  let uploadedPhotoURL = null;
+  let selectedLat = null;
+  let selectedLng = null;
+  let currentUser = null;
+  let mapInstance = null;
+  let markerInstance = null;
+
+  onAuthStateChanged(auth, (user) => {
+    if (!user) { window.location.href = 'login.html'; return; }
+    currentUser = user;
+  });
+
+  // Photo input
+  const photoInput = document.getElementById('photoInput');
+  const uploadZone = document.getElementById('uploadZone');
+  const previewZone = document.getElementById('previewZone');
+  const photoPreview = document.getElementById('photoPreview');
+  const actionBtn = document.getElementById('actionBtn');
+  const backBtn = document.getElementById('backBtn');
+
+  uploadZone.addEventListener('click', () => photoInput.click());
+  document.getElementById('changePhotoBtn').addEventListener('click', () => photoInput.click());
+
+  photoInput.addEventListener('change', () => {
+    const file = photoInput.files[0];
+    if (!file) return;
+    selectedFile = file;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      photoPreview.src = e.target.result;
+      uploadZone.style.display = 'none';
+      previewZone.style.display = 'block';
+      actionBtn.disabled = false;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // Back button
+  backBtn.addEventListener('click', () => {
+    if (currentStep === 1) window.location.href = 'index.html';
+    else showStep(1);
+  });
+
+  function showStep(n) {
+    currentStep = n;
+    document.getElementById('step1').style.display = n === 1 ? 'block' : 'none';
+    document.getElementById('step2').style.display = n === 2 ? 'block' : 'none';
+    document.getElementById('stepIndicator').textContent = `Étape ${n} / 2`;
+    if (n === 2) {
+      actionBtn.textContent = 'Soumettre ✓';
+      actionBtn.disabled = selectedLat === null;
+      setTimeout(initMap, 100);
+    } else {
+      actionBtn.textContent = 'Suivant →';
+      actionBtn.disabled = selectedFile === null;
+    }
+  }
+
+  function initMap() {
+    if (mapInstance) return;
+    mapInstance = L.map('map').setView([35.8245, 10.6346], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(mapInstance);
+
+    const greenIcon = L.divIcon({
+      className: '',
+      html: `<div style="width:32px;height:32px;background:#43A047;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:3px solid #2E7D32;box-shadow:0 2px 8px rgba(0,0,0,0.3)"></div>`,
+      iconSize: [32, 32],
+      iconAnchor: [16, 32]
+    });
+
+    mapInstance.on('click', (e) => {
+      selectedLat = parseFloat(e.latlng.lat.toFixed(6));
+      selectedLng = parseFloat(e.latlng.lng.toFixed(6));
+      if (markerInstance) mapInstance.removeLayer(markerInstance);
+      markerInstance = L.marker([selectedLat, selectedLng], { icon: greenIcon }).addTo(mapInstance);
+      document.getElementById('coordsDisplay').style.display = 'flex';
+      document.getElementById('coordsText').textContent = `${selectedLat}, ${selectedLng}`;
+      actionBtn.disabled = false;
+    });
+  }
+
+  // Action button
+  actionBtn.addEventListener('click', async () => {
+   if (currentStep === 1) {
+      uploadedPhotoURL = photoPreview.src;
+      showStep(2);
+   } else {
+      actionBtn.disabled = true;
+      actionBtn.textContent = 'Envoi...';
+      try {
+        let userPrenom = '';
+        try {
+          const snap = await getDoc(doc(db, 'users', currentUser.uid));
+          if (snap.exists()) userPrenom = snap.data().prenom;
+        } catch {}
+
+        await addDoc(collection(db, 'reports'), {
+          photoURL: uploadedPhotoURL,
+          latitude: selectedLat,
+          longitude: selectedLng,
+          userId: currentUser.uid,
+          userPrenom,
+          timestamp: new Date().toISOString(),
+          statut: 'en_attente',
+          ville: 'Sousse'
+        });
+
+        document.getElementById('step2').style.display = 'none';
+        document.querySelector('.step-header').style.display = 'none';
+        document.getElementById('successScreen').style.display = 'flex';
+
+        let count = 3;
+        const countdownEl = document.getElementById('countdown');
+        const timer = setInterval(() => {
+          count--;
+          countdownEl.textContent = `Retour à l'accueil dans ${count}s...`;
+          if (count <= 0) { clearInterval(timer); window.location.href = 'index.html'; }
+        }, 1000);
+
+      } catch (err) {
+        showNotification("Erreur lors de l'envoi. Veuillez réessayer.", 'error');
+        actionBtn.disabled = false;
+        actionBtn.textContent = 'Soumettre ✓';
+      }
+    }
+  });
+</script>
+</body>
+</html> 

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Seed Campaigns</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body style="padding:40px;max-width:480px;margin:auto;font-family:Poppins,sans-serif">
+  <h2 style="color:#2E7D32;margin-bottom:16px">Initialisation des campagnes</h2>
+  <p style="color:#6B6B6B;margin-bottom:24px;font-size:14px">
+    Cliquez le bouton ci-dessous <strong>une seule fois</strong> pour ajouter les 5 campagnes dans Firestore.
+    Supprimez ce fichier ensuite.
+  </p>
+  <button id="seedBtn" style="background:#43A047;color:white;border:none;border-radius:16px;padding:14px 28px;font-size:16px;font-family:Poppins,sans-serif;cursor:pointer;width:100%">
+    Initialiser les campagnes
+  </button>
+  <div id="log" style="margin-top:20px;font-size:13px;color:#6B6B6B;line-height:2"></div>
+
+<script type="module">
+  import { db } from './firebase-config.js';
+  import { collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const campaigns = [
+    { nom: "Nettoyage Plage Boujaafar", lieu: "Sousse Nord", date: "2025-05-15", heure: "09:00",
+      categorie: "Nettoyage", description: "Grande journée de nettoyage de la plage avec les volontaires.", participants: [], maxParticipants: 50, statut: "ouvert" },
+    { nom: "Journée Zéro Déchet Médina", lieu: "Médina de Sousse", date: "2025-05-22", heure: "10:00",
+      categorie: "Sensibilisation", description: "Sensibilisation au tri des déchets dans la vieille ville.", participants: [], maxParticipants: 30, statut: "ouvert" },
+    { nom: "Plantation d'arbres Corniche", lieu: "Corniche Sousse", date: "2025-06-01", heure: "08:00",
+      categorie: "Plantation", description: "Plantation de 50 arbres le long de la Corniche de Sousse.", participants: [], maxParticipants: 40, statut: "ouvert" },
+    { nom: "Collecte Quartier Khzama", lieu: "Khzama Sousse", date: "2025-06-07", heure: "09:30",
+      categorie: "Nettoyage", description: "Collecte organisée des déchets dans le quartier Khzama.", participants: [], maxParticipants: 25, statut: "ouvert" },
+    { nom: "Atelier Tri des Déchets", lieu: "Maison des Jeunes Sousse", date: "2025-06-14", heure: "14:00",
+      categorie: "Sensibilisation", description: "Atelier pratique sur le tri sélectif et le recyclage.", participants: [], maxParticipants: 20, statut: "ouvert" }
+  ];
+
+  document.getElementById('seedBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('seedBtn');
+    const log = document.getElementById('log');
+    btn.disabled = true;
+    btn.textContent = 'En cours...';
+    log.innerHTML = '';
+
+    for (const c of campaigns) {
+      try {
+        await addDoc(collection(db, 'campaigns'), c);
+        log.innerHTML += `<div style="color:#2E7D32">✓ ${c.nom}</div>`;
+      } catch (e) {
+        log.innerHTML += `<div style="color:#E53935">✗ ${c.nom}: ${e.message}</div>`;
+      }
+    }
+    btn.textContent = 'Terminé !';
+    log.innerHTML += `<div style="color:#2E7D32;margin-top:12px;font-weight:600">Supprimez ce fichier maintenant.</div>`;
+  });
+</script>
+</body>
+</html>

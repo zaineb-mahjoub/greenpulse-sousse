@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GreenPulse — Sensibilisation</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="page-wrapper">
+  <div class="page-header">
+    <button class="back-btn" onclick="window.location.href='index.html'">
+      <span class="material-icons">arrow_back</span>
+    </button>
+    <h1>Sensibilisation</h1>
+  </div>
+
+  <!-- HERO -->
+  <div class="hero-banner">
+    <svg width="52" height="52" viewBox="0 0 64 64" fill="none">
+      <path d="M32 8C32 8 12 20 12 38C12 49.046 21.402 58 32 58C42.598 58 52 49.046 52 38C52 20 32 8 32 8Z" fill="rgba(255,255,255,0.25)"/>
+      <path d="M32 14C32 14 16 24 16 38C16 46.837 23.163 54 32 54C40.837 54 48 46.837 48 38C48 24 32 14 32 14Z" fill="white" fill-opacity="0.9"/>
+      <path d="M32 20L32 50" stroke="#2E7D32" stroke-width="3" stroke-linecap="round"/>
+      <path d="M32 38L22 28" stroke="#2E7D32" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M32 32L42 22" stroke="#2E7D32" stroke-width="2.5" stroke-linecap="round"/>
+    </svg>
+    <h2>L'environnement de Sousse</h2>
+    <p>Comprendre pour agir ensemble</p>
+  </div>
+
+  <!-- SITUATION -->
+  <div class="awareness-section" style="background:var(--amber-light);margin-top:16px">
+    <div class="section-title" style="margin-bottom:4px">
+      <span class="material-icons" style="color:var(--warning)">warning</span>
+      La situation aujourd'hui
+    </div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:4px">Quelques chiffres qui parlent</p>
+    <div class="stat-pills">
+      <div class="stat-pill">
+        <span class="stat-number" id="reportCount">...</span>
+        <span class="stat-label">signalements</span>
+      </div>
+      <div class="stat-pill">
+        <span class="stat-number" style="color:#E65100">3</span>
+        <span class="stat-label">plages polluées</span>
+      </div>
+      <div class="stat-pill">
+        <span class="stat-number" style="color:#C62828">+18%</span>
+        <span class="stat-label">dépôts en 2024</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- CE QUI VA BIEN -->
+  <div class="awareness-section" style="background:var(--green-light)">
+    <div class="section-title" style="margin-bottom:4px">
+      <span class="material-icons" style="color:var(--green-accent)">thumb_up</span>
+      Ce qui va bien
+    </div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:10px">Des raisons d'espérer</p>
+    <div class="info-cards">
+      <div class="info-card">
+        <span class="material-icons" style="color:var(--green-accent)">check_circle</span>
+        Campagnes de nettoyage actives à Sousse
+      </div>
+      <div class="info-card">
+        <span class="material-icons" style="color:var(--green-accent)">check_circle</span>
+        Communauté citoyenne engagée et grandissante
+      </div>
+      <div class="info-card">
+        <span class="material-icons" style="color:var(--green-accent)">check_circle</span>
+        Application GreenPulse lancée pour agir
+      </div>
+    </div>
+  </div>
+
+  <!-- CE QUI DOIT CHANGER -->
+  <div class="awareness-section" style="background:#FFEBEE">
+    <div class="section-title" style="margin-bottom:4px">
+      <span class="material-icons" style="color:var(--error)">report_problem</span>
+      Ce qui doit changer
+    </div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:10px">Les défis à surmonter</p>
+    <div class="info-cards">
+      <div class="info-card">
+        <span class="material-icons" style="color:var(--warning)">warning</span>
+        Dépôts illégaux en forte hausse
+      </div>
+      <div class="info-card">
+        <span class="material-icons" style="color:var(--warning)">warning</span>
+        Manque de poubelles publiques dans certains quartiers
+      </div>
+      <div class="info-card">
+        <span class="material-icons" style="color:var(--warning)">warning</span>
+        Sensibilisation insuffisante dans les zones rurales
+      </div>
+    </div>
+  </div>
+
+  <!-- QUE FAIRE -->
+  <div class="awareness-section" style="background:var(--blue-light)">
+    <div class="section-title" style="margin-bottom:4px">
+      <span class="material-icons" style="color:#1565C0">lightbulb</span>
+      Que pouvez-vous faire ?
+    </div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:10px">6 gestes simples qui font la différence</p>
+    <div class="tips-grid">
+      <div class="tip-card">
+        <span class="material-icons">photo_camera</span>
+        Signalez chaque déchet
+      </div>
+      <div class="tip-card">
+        <span class="material-icons">groups</span>
+        Rejoignez une campagne
+      </div>
+      <div class="tip-card">
+        <span class="material-icons">block</span>
+        Refusez le plastique jetable
+      </div>
+      <div class="tip-card">
+        <span class="material-icons">record_voice_over</span>
+        Sensibilisez votre entourage
+      </div>
+      <div class="tip-card">
+        <span class="material-icons">delete</span>
+        Triez vos déchets
+      </div>
+      <div class="tip-card">
+        <span class="material-icons">not_interested</span>
+        Ne jetez jamais dehors
+      </div>
+    </div>
+  </div>
+
+  <!-- CTA -->
+  <div class="cta-banner">
+    <h3>Passez à l'action !</h3>
+    <p>Chaque geste compte pour Sousse</p>
+    <div class="cta-buttons">
+      <button class="btn-cta-white" onclick="window.location.href='report.html'">
+        Signaler un déchet
+      </button>
+      <button class="btn-outline" onclick="window.location.href='campaigns.html'">
+        Rejoindre une campagne
+      </button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { auth, db } from './firebase-config.js';
+  import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  onAuthStateChanged(auth, (user) => {
+    if (!user) { window.location.href = 'login.html'; return; }
+    loadCount();
+  });
+
+  async function loadCount() {
+    try {
+      const snap = await getDocs(collection(db, 'reports'));
+      const target = snap.size;
+      const el = document.getElementById('reportCount');
+      let current = 0;
+      const step = Math.max(1, Math.ceil(target / 50));
+      const timer = setInterval(() => {
+        current = Math.min(current + step, target);
+        el.textContent = current;
+        if (current >= target) clearInterval(timer);
+      }, 30);
+    } catch {
+      document.getElementById('reportCount').textContent = '0';
+    }
+  }
+</script>
+</body>
+</html>
