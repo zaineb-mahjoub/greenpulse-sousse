@@ -1,6 +1,6 @@
 {
   "projects": {
-    "defult ": "greenpulse-sousse"
+      "default": "greenpulse-sousse"
   },
   "targets": {},
   "etags": {}
