@@ -123,13 +123,17 @@
 
   onAuthStateChanged(auth, async (user) => {
     if (!user) { window.location.href = 'login.html'; return; }
+        const greet = document.getElementById('userGreeting');
     try {
       const snap = await getDoc(doc(db, 'users', user.uid));
-      if (snap.exists()) {
-        document.getElementById('userGreeting').textContent = `Bonjour, ${snap.data().prenom}`;
-      }
-    } catch {}
-  });
+      const prenom = snap.exists() ? snap.data().prenom : null;
+      greet.textContent = prenom ? `Bonjour, ${prenom}` : 'Bienvenue !';
+      if (!snap.exists()) console.warn('Profil utilisateur introuvable pour', user.uid);
+    } catch (err) {
+      greet.textContent = 'Bienvenue !';
+      console.error('Erreur chargement profil :', err);
+    }
+      });
 
   document.getElementById('logoutBtn').addEventListener('click', async () => {
     await signOut(auth);

@@ -150,7 +150,7 @@
 <script type="module">
   import { auth, db } from './firebase-config.js';
   import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { collection, getCountFromServer } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   onAuthStateChanged(auth, (user) => {
     if (!user) { window.location.href = 'login.html'; return; }
@@ -159,8 +159,9 @@
 
   async function loadCount() {
     try {
-      const snap = await getDocs(collection(db, 'reports'));
-      const target = snap.size;
+      // Count on the server instead of downloading every report.
+      const snap = await getCountFromServer(collection(db, 'reports'));
+      const target = snap.data().count;
       const el = document.getElementById('reportCount');
       let current = 0;
       const step = Math.max(1, Math.ceil(target / 50));
@@ -169,7 +170,8 @@
         el.textContent = current;
         if (current >= target) clearInterval(timer);
       }, 30);
-    } catch {
+    } catch (err) {
+      console.error('Report count error:', err);
       document.getElementById('reportCount').textContent = '0';
     }
   }
