@@ -60,7 +60,7 @@
   <div id="step1" class="step-content">
     <h2>Photographiez le déchet</h2>
     <p class="subtitle">Prenez une photo claire du déchet à signaler</p>
-    <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none">
+    <input type="file" id="photoInput" accept="image/*" style="display:none">
     <div class="upload-zone" id="uploadZone">
       <span class="material-icons">photo_camera</span>
       <h3>Appuyez pour prendre une photo</h3>
@@ -100,8 +100,9 @@
 <script type="module">
   import { auth, db } from './firebase-config.js';
   import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { addDoc, collection, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { collection, doc, getDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
   import { showNotification } from './js/notifications.js';
+  import { compressImage, getQuartier } from './js/utils.js';
 
   let currentStep = 1;
   let selectedFile = null;
@@ -128,18 +129,32 @@
   uploadZone.addEventListener('click', () => photoInput.click());
   document.getElementById('changePhotoBtn').addEventListener('click', () => photoInput.click());
 
-  photoInput.addEventListener('change', () => {
+  photoInput.addEventListener('change', async () => {
     const file = photoInput.files[0];
     if (!file) return;
-    selectedFile = file;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      photoPreview.src = e.target.result;
+    if (file.size > 20 * 1024 * 1024) {
+      showNotification('Photo trop lourde (max 20 Mo).', 'error');
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      showNotification('Veuillez choisir une image.', 'error');
+      return;
+    }
+    actionBtn.disabled = true;
+    try {
+      // Compress in the browser: a phone photo of several MB becomes ~100-300 KB.
+      uploadedPhotoURL = await compressImage(file);
+      selectedFile = file;
+      photoPreview.src = uploadedPhotoURL;
       uploadZone.style.display = 'none';
       previewZone.style.display = 'block';
       actionBtn.disabled = false;
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Image processing error:', err);
+      selectedFile = null;
+      uploadedPhotoURL = null;
+      showNotification("Impossible de traiter cette photo. Essayez une autre image (JPEG ou PNG).", 'error');
+    }
   });
 
   // Back button
@@ -178,8 +193,15 @@
     });
 
     mapInstance.on('click', (e) => {
-      selectedLat = parseFloat(e.latlng.lat.toFixed(6));
-      selectedLng = parseFloat(e.latlng.lng.toFixed(6));
+      const lat = parseFloat(e.latlng.lat.toFixed(6));
+      const lng = parseFloat(e.latlng.lng.toFixed(6));
+      // Same bounds as the Firestore rules (Tunisia).
+      if (lat < 30 || lat > 38 || lng < 7 || lng > 12) {
+        showNotification('Veuillez choisir un emplacement en Tunisie.', 'error');
+        return;
+      }
+      selectedLat = lat;
+      selectedLng = lng;
       if (markerInstance) mapInstance.removeLayer(markerInstance);
       markerInstance = L.marker([selectedLat, selectedLng], { icon: greenIcon }).addTo(mapInstance);
       document.getElementById('coordsDisplay').style.display = 'flex';
@@ -191,7 +213,6 @@
   // Action button
   actionBtn.addEventListener('click', async () => {
    if (currentStep === 1) {
-      uploadedPhotoURL = photoPreview.src;
       showStep(2);
    } else {
       actionBtn.disabled = true;
@@ -200,19 +221,37 @@
         let userPrenom = '';
         try {
           const snap = await getDoc(doc(db, 'users', currentUser.uid));
-          if (snap.exists()) userPrenom = snap.data().prenom;
-        } catch {}
+          if (snap.exists()) userPrenom = String(snap.data().prenom || '').slice(0, 50);
+        } catch (err) {
+          console.warn('Profil non chargé :', err);
+        }
 
-        await addDoc(collection(db, 'reports'), {
-          photoURL: uploadedPhotoURL,
+        const quartier = await getQuartier(selectedLat, selectedLng);
+        const now = new Date().toISOString();
+
+        // The report (small, read by dashboards) and its photo (large, read only
+        // by its author and moderators) are stored separately, in one atomic batch.
+        const reportRef = doc(collection(db, 'reports'));
+        const report = {
           latitude: selectedLat,
           longitude: selectedLng,
           userId: currentUser.uid,
           userPrenom,
-          timestamp: new Date().toISOString(),
+          timestamp: now,
           statut: 'en_attente',
-          ville: 'Sousse'
+          ville: 'Sousse',
+          hasPhoto: true
+        };
+        if (quartier) report.quartier = quartier;
+
+        const batch = writeBatch(db);
+        batch.set(reportRef, report);
+        batch.set(doc(db, 'reportPhotos', reportRef.id), {
+          userId: currentUser.uid,
+          photo: uploadedPhotoURL,
+          createdAt: now
         });
+        await batch.commit();
 
         document.getElementById('step2').style.display = 'none';
         document.querySelector('.step-header').style.display = 'none';
@@ -227,6 +266,7 @@
         }, 1000);
 
       } catch (err) {
+        console.error('Report submission error:', err);
         showNotification("Erreur lors de l'envoi. Veuillez réessayer.", 'error');
         actionBtn.disabled = false;
         actionBtn.textContent = 'Soumettre ✓';
