@@ -100,7 +100,7 @@
 <script type="module">
   import { auth, db } from './firebase-config.js';
   import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { collection, doc, getDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { collection, doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
   import { showNotification } from './js/notifications.js';
   import { compressImage, getQuartier } from './js/utils.js';
 
@@ -218,14 +218,6 @@
       actionBtn.disabled = true;
       actionBtn.textContent = 'Envoi...';
       try {
-        let userPrenom = '';
-        try {
-          const snap = await getDoc(doc(db, 'users', currentUser.uid));
-          if (snap.exists()) userPrenom = String(snap.data().prenom || '').slice(0, 50);
-        } catch (err) {
-          console.warn('Profil non chargé :', err);
-        }
-
         const quartier = await getQuartier(selectedLat, selectedLng);
         const now = new Date().toISOString();
 
@@ -236,7 +228,6 @@
           latitude: selectedLat,
           longitude: selectedLng,
           userId: currentUser.uid,
-          userPrenom,
           timestamp: now,
           statut: 'en_attente',
           ville: 'Sousse',

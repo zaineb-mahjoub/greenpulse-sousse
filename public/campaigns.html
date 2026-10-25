@@ -33,17 +33,18 @@
 <script type="module">
   import { auth, db } from './firebase-config.js';
   import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { collection, getDocs, doc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { collection, getDocs, getDoc, doc, updateDoc, arrayUnion, writeBatch, deleteField } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
   import { showNotification } from './js/notifications.js';
-  import { escapeHtml as esc } from './js/utils.js';
-
+  import { escapeHtml as esc, isAdmin } from './js/utils.js';
   let currentUser = null;
+  let userIsAdmin = false;
   let allCampaigns = [];
   let activeFilter = 'Tous';
 
-  onAuthStateChanged(auth, (user) => {
+   onAuthStateChanged(auth, async (user) => {
     if (!user) { window.location.href = 'login.html'; return; }
     currentUser = user;
+    userIsAdmin = await isAdmin(user.uid);
     loadCampaigns();
   });
 
@@ -96,6 +97,9 @@
             ${isDone ? `<span class="tag-pill" style="background:#E8F5E9;color:#2E7D32">Terminée</span>` : ''}
             ${!isDone && c.maxParticipants ? `<span class="tag-pill" style="background:#F5F5F5;color:var(--text-muted)">Max ${Number(c.maxParticipants)} pers.</span>` : ''}
           </div>
+          ${userIsAdmin ? `<button onclick="deleteCampaign('${esc(c.id)}', this)"
+            style="background:none;border:none;color:#C62828;font-family:'Poppins',sans-serif;font-size:12px;font-weight:600;cursor:pointer;padding:0;text-align:left">
+            Supprimer la campagne</button>` : ''}
           <div class="campaign-bottom">
             <span class="participants-count">
               <span class="material-icons" style="font-size:15px;vertical-align:middle">group</span>
@@ -113,7 +117,32 @@
         </div>`;
     }).join('');
   }
-
+  // Moderators only (the Firestore rules refuse this for everyone else).
+  // If the campaign was created from a report, that report goes back to "à traiter".
+  window.deleteCampaign = async (campaignId, btn) => {
+    if (!confirm('Supprimer définitivement cette campagne ?')) return;
+    btn.disabled = true;
+    try {
+      const campaign = allCampaigns.find(c => c.id === campaignId);
+      const batch = writeBatch(db);
+      batch.delete(doc(db, 'campaigns', campaignId));
+      if (campaign && campaign.sourceReportId) {
+        const reportRef = doc(db, 'reports', campaign.sourceReportId);
+        const reportSnap = await getDoc(reportRef);
+        if (reportSnap.exists()) {
+          batch.update(reportRef, { statut: 'en_attente', campaignId: deleteField(), updatedAt: new Date().toISOString() });
+        }
+      }
+      await batch.commit();
+      allCampaigns = allCampaigns.filter(c => c.id !== campaignId);
+      filterAndRender();
+      showNotification('Campagne supprimée.', 'success');
+    } catch (err) {
+      console.error('Delete campaign error:', err);
+      showNotification('Suppression refusée. Réessayez.', 'error');
+      btn.disabled = false;
+    }
+  }; 
   window.joinCampaign = async (campaignId, btn) => {
     if (!currentUser) return;
     const originalText = btn.textContent;

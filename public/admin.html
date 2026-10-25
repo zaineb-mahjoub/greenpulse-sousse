@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GreenPulse — Modération</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .mod-card { background: var(--white); border-radius: var(--border-radius); box-shadow: var(--shadow); overflow: hidden; }
+    .mod-photo { width: 100%; height: 180px; object-fit: cover; display: block; background: #ECEFF1; }
+    .mod-photo-placeholder { height: 180px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); background: #ECEFF1; font-size: 13px; }
+    .mod-body { padding: 14px 16px; }
+    .mod-body h3 { font-size: 15px; font-weight: 600; margin-bottom: 4px; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+    .mod-meta { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.6; }
+    .mod-meta a { color: var(--green-accent); }
+    .badge { font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 20px; white-space: nowrap; }
+    .badge-pending { background: #FFF8E1; color: #E65100; }
+    .badge-campaign { background: #E8F5E9; color: #2E7D32; }
+    .mod-actions { display: flex; gap: 8px; }
+    .mod-actions button, .campaign-form button {
+      flex: 1; border-radius: 10px; padding: 9px 6px; cursor: pointer;
+      font-family: 'Poppins', sans-serif; font-size: 12px; font-weight: 600;
+    }
+    .btn-campaign { border: none; background: var(--green-accent); color: var(--white); }
+    .btn-delete { border: 1.5px solid #EF9A9A; background: var(--white); color: #C62828; }
+    .btn-cancel { border: 1.5px solid #CFD8DC; background: var(--white); color: var(--text-muted); }
+    .campaign-form { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #ECEFF1; flex-direction: column; gap: 8px; }
+    .campaign-form label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+    .campaign-form input, .campaign-form select, .campaign-form textarea {
+      width: 100%; padding: 9px 10px; border: 1.5px solid #CFD8DC; border-radius: 10px;
+      font-family: 'Poppins', sans-serif; font-size: 13px;
+    }
+    .campaign-form .row { display: flex; gap: 8px; }
+    .campaign-form .row > div { flex: 1; }
+    .empty-state { text-align: center; padding: 40px 0; color: var(--text-muted); font-size: 14px; }
+  </style>
+</head>
+<body>
+<div class="page-wrapper">
+  <div class="page-header">
+    <button class="back-btn" onclick="window.location.href='index.html'">
+      <span class="material-icons">arrow_back</span>
+    </button>
+    <h1>Modération</h1>
+  </div>
+
+  <div class="filter-bar" id="filterBar">
+    <button class="filter-pill active" data-filter="en_attente">À traiter</button>
+    <button class="filter-pill" data-filter="campagne">Campagnes créées</button>
+    <button class="filter-pill" data-filter="tous">Tous</button>
+  </div>
+
+  <div id="modList" style="padding:0 16px 24px;display:flex;flex-direction:column;gap:14px">
+    <div class="empty-state">Chargement...</div>
+  </div>
+</div>
+
+<script type="module">
+  import { auth, db } from './firebase-config.js';
+  import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { collection, doc, getDoc, getDocs, limit, orderBy, query, writeBatch }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { showNotification } from './js/notifications.js';
+  import { escapeHtml as esc, isAdmin, formatDateTime } from './js/utils.js';
+
+  const list = document.getElementById('modList');
+  let reports = [];
+  let activeFilter = 'en_attente';
+
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) { window.location.href = 'login.html'; return; }
+    // The UI check is for convenience only: the Firestore rules are what actually protect the data.
+    if (!(await isAdmin(user.uid))) { window.location.href = 'index.html'; return; }
+    await loadReports();
+  });
+
+  async function loadReports() {
+    try {
+      const snap = await getDocs(query(collection(db, 'reports'), orderBy('timestamp', 'desc'), limit(100)));
+      reports = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      render();
+    } catch (err) {
+      console.error('Moderation load error:', err);
+      list.innerHTML = `<div class="empty-state" style="color:var(--error)">Erreur de chargement.</div>`;
+    }
+  }
+
+  function filtered() {
+    if (activeFilter === 'en_attente') return reports.filter(r => !r.campaignId);
+    if (activeFilter === 'campagne') return reports.filter(r => r.campaignId);
+    return reports;
+  }
+
+  function render() {
+    const pending = reports.filter(r => !r.campaignId).length;
+    document.querySelector('.page-header h1').textContent = `Modération (${pending} à traiter)`;
+
+    const shown = filtered();
+    if (shown.length === 0) {
+      list.innerHTML = `<div class="empty-state">Aucun signalement ici.</div>`;
+      return;
+    }
+    list.innerHTML = shown.map(r => {
+      const place = r.quartier || r.ville || 'Sousse';
+      const lat = Number(r.latitude), lng = Number(r.longitude);
+      const osm = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=18/${lat}/${lng}`;
+      const badge = r.campaignId
+        ? `<span class="badge badge-campaign">Campagne créée</span>`
+        : `<span class="badge badge-pending">À traiter</span>`;
+      const id = esc(r.id);
+      return `
+        <div class="mod-card">
+          <div class="mod-photo-placeholder" id="photo-${id}">Chargement de la photo...</div>
+          <div class="mod-body">
+            <h3><span>${esc(place)}</span>${badge}</h3>
+            <div class="mod-meta">
+              ${esc(formatDateTime(r.timestamp))}<br>
+              <a href="${osm}" target="_blank" rel="noopener">Voir sur la carte</a>
+            </div>
+            <div class="mod-actions">
+              ${r.campaignId ? '' : `<button class="btn-campaign" data-action="open-form" data-id="${id}">Créer une campagne</button>`}
+              <button class="btn-delete" data-action="delete" data-id="${id}">Supprimer</button>
+            </div>
+            ${r.campaignId ? '' : campaignForm(r)}
+          </div>
+        </div>`;
+    }).join('');
+    shown.forEach(loadPhoto);
+  }
+
+  // Campaign form, pre-filled from the report's location.
+  function campaignForm(r) {
+    const id = esc(r.id);
+    const place = esc((r.quartier ? r.quartier + ', ' : '') + 'Sousse');
+    return `
+      <form class="campaign-form" id="form-${id}" data-id="${id}">
+        <label>Nom de la campagne</label>
+        <input name="nom" required maxlength="80" value="Nettoyage – ${esc(r.quartier || 'Sousse')}">
+        <label>Lieu</label>
+        <input name="lieu" required maxlength="80" value="${place}">
+        <div class="row">
+          <div><label>Date</label><input name="date" type="date" required></div>
+          <div><label>Heure</label><input name="heure" type="time" required value="09:00"></div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Catégorie</label>
+            <select name="categorie">
+              <option>Nettoyage</option><option>Sensibilisation</option><option>Plantation</option>
+            </select>
+          </div>
+          <div><label>Places max</label><input name="maxParticipants" type="number" min="1" max="500" value="25" required></div>
+        </div>
+        <label>Description</label>
+        <textarea name="description" rows="3" maxlength="500">Rejoignez-nous pour nettoyer ce secteur signalé par les citoyens de Sousse. Gants et sacs fournis.</textarea>
+        <div class="mod-actions">
+          <button type="button" class="btn-cancel" data-action="close-form" data-id="${id}">Annuler</button>
+          <button type="submit" class="btn-campaign">Publier la campagne</button>
+        </div>
+      </form>`;
+  }
+
+  // Photos live in reportPhotos/{reportId}. Older reports stored them inline (photoURL).
+  async function loadPhoto(r) {
+    const slot = document.getElementById(`photo-${r.id}`);
+    if (!slot) return;
+    try {
+      let src = r.photoURL || null;
+      if (!src && r.hasPhoto) {
+        const snap = await getDoc(doc(db, 'reportPhotos', r.id));
+        if (snap.exists()) src = snap.data().photo;
+      }
+      if (src && String(src).startsWith('data:image/')) {
+        const img = document.createElement('img');
+        img.className = 'mod-photo';
+        img.alt = 'Photo du signalement';
+        img.src = src;
+        slot.replaceWith(img);
+      } else {
+        slot.textContent = 'Pas de photo';
+      }
+    } catch (err) {
+      console.error('Photo load error:', err);
+      slot.textContent = 'Photo indisponible';
+    }
+  }
+
+  // Buttons: open/close the campaign form, delete a report.
+  list.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button[data-action]');
+    if (!btn) return;
+    const { action, id } = btn.dataset;
+
+    if (action === 'open-form' || action === 'close-form') {
+      document.getElementById(`form-${id}`).style.display = action === 'open-form' ? 'flex' : 'none';
+      return;
+    }
+
+    if (action === 'delete') {
+      if (!confirm('Supprimer définitivement ce signalement et sa photo ?')) return;
+      btn.disabled = true;
+      try {
+        const batch = writeBatch(db);
+        batch.delete(doc(db, 'reports', id));
+        batch.delete(doc(db, 'reportPhotos', id));
+        await batch.commit();
+        reports = reports.filter(r => r.id !== id);
+        render();
+        showNotification('Signalement supprimé.', 'success');
+      } catch (err) {
+        console.error('Delete error:', err);
+        showNotification('Suppression refusée. Réessayez.', 'error');
+        btn.disabled = false;
+      }
+    }
+  });
+
+  // Publish a campaign from a report: create the campaign and link the report to it, atomically.
+  list.addEventListener('submit', async (e) => {
+    const form = e.target.closest('.campaign-form');
+    if (!form) return;
+    e.preventDefault();
+    const id = form.dataset.id;
+    const r = reports.find(x => x.id === id);
+    const data = Object.fromEntries(new FormData(form));
+    const submitBtn = form.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    try {
+      const now = new Date().toISOString();
+      const campaignRef = doc(collection(db, 'campaigns'));
+      const batch = writeBatch(db);
+      batch.set(campaignRef, {
+        nom: data.nom.trim(),
+        lieu: data.lieu.trim(),
+        date: data.date,
+        heure: data.heure,
+        categorie: data.categorie,
+        description: data.description.trim(),
+        maxParticipants: Number(data.maxParticipants),
+        participants: [],
+        statut: 'ouvert',
+        latitude: Number(r.latitude),
+        longitude: Number(r.longitude),
+        sourceReportId: id,
+        createdAt: now
+      });
+      batch.update(doc(db, 'reports', id), { statut: 'en_cours', campaignId: campaignRef.id, updatedAt: now });
+      await batch.commit();
+      r.campaignId = campaignRef.id;
+      r.statut = 'en_cours';
+      render();
+      showNotification('Campagne publiée ! Les citoyens peuvent la rejoindre.', 'success');
+    } catch (err) {
+      console.error('Campaign creation error:', err);
+      showNotification('Création refusée. Vérifiez les champs et réessayez.', 'error');
+      submitBtn.disabled = false;
+    }
+  });
+
+  document.getElementById('filterBar').addEventListener('click', (e) => {
+    const pill = e.target.closest('.filter-pill');
+    if (!pill) return;
+    document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+    activeFilter = pill.dataset.filter;
+    render();
+  });
+</script>
+</body>
+</html>

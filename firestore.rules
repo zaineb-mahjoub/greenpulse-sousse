@@ -34,12 +34,12 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ---------- Reports (small documents, readable by all signed-in users) ----------
+    // ---------- Reports (no names or photos; readable by signed-in users for the public statistics) ----------
     match /reports/{reportId} {
       allow read: if signedIn();
 
       allow create: if signedIn()
-        && request.resource.data.keys().hasOnly(['latitude', 'longitude', 'userId', 'userPrenom',
+        && request.resource.data.keys().hasOnly(['latitude', 'longitude', 'userId',
              'timestamp', 'statut', 'ville', 'quartier', 'hasPhoto'])
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.statut == 'en_attente'
@@ -48,24 +48,24 @@ service cloud.firestore {
         && request.resource.data.longitude is number
         && request.resource.data.longitude >= 7 && request.resource.data.longitude <= 12
         && request.resource.data.timestamp is string
-        && request.resource.data.userPrenom is string && request.resource.data.userPrenom.size() <= 50
         && request.resource.data.ville is string && request.resource.data.ville.size() <= 60
         && (!('quartier' in request.resource.data)
             || (request.resource.data.quartier is string && request.resource.data.quartier.size() <= 60))
         && request.resource.data.hasPhoto is bool;
 
-      // Only moderators change the status, and nothing else.
+      // Only moderators update a report: its status and the campaign created from it.
       allow update: if isAdmin()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['statut', 'updatedAt'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['statut', 'updatedAt', 'campaignId'])
         && isValidStatus(request.resource.data.statut)
-        && request.resource.data.updatedAt is string;
+        && request.resource.data.updatedAt is string
+        && (!('campaignId' in request.resource.data) || request.resource.data.campaignId is string);
 
       allow delete: if isAdmin();
     }
 
-    // ---------- Report photos (large; only the author and moderators can read) ----------
+    // ---------- Report photos (private: only moderators can see them) ----------
     match /reportPhotos/{reportId} {
-      allow read: if signedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isAdmin();
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly(['userId', 'photo', 'createdAt'])
         && request.resource.data.userId == request.auth.uid

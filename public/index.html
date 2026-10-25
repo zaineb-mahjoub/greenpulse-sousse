@@ -50,6 +50,15 @@
     .nav-icon .material-icons { font-size: 30px; }
     .nav-card h3 { font-size: 15px; font-weight: 700; color: var(--text-dark); margin: 0; }
     .nav-card p { font-size: 12px; color: var(--text-muted); margin: 0; line-height: 1.4; }
+    .nav-card.wide {
+      grid-column: span 2;
+      flex-direction: row;
+      justify-content: flex-start;
+      text-align: left;
+      padding: 18px 20px;
+      gap: 16px;
+    }
+    .nav-card.wide .nav-icon { margin-bottom: 0; flex-shrink: 0; }
     .home-footer {
       text-align: center;
       padding: 12px;
@@ -111,6 +120,16 @@
       <h3>Campagnes</h3>
       <p>Rejoindre une action</p>
     </a>
+
+    <a class="nav-card wide" href="admin.html" id="adminCard" style="background:#ECEFF1;display:none">
+      <div class="nav-icon" style="background:#CFD8DC">
+        <span class="material-icons" style="color:#37474F">admin_panel_settings</span>
+      </div>
+      <div>
+        <h3>Modération</h3>
+        <p>Traiter les signalements des citoyens</p>
+      </div>
+    </a>
   </div>
 
   <div class="home-footer">GreenPulse Sousse &copy; 2026</div>
@@ -120,10 +139,11 @@
   import { auth, db } from './firebase-config.js';
   import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
   import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { isAdmin } from './js/utils.js';
 
   onAuthStateChanged(auth, async (user) => {
     if (!user) { window.location.href = 'login.html'; return; }
-        const greet = document.getElementById('userGreeting');
+    const greet = document.getElementById('userGreeting');
     try {
       const snap = await getDoc(doc(db, 'users', user.uid));
       const prenom = snap.exists() ? snap.data().prenom : null;
@@ -133,7 +153,10 @@
       greet.textContent = 'Bienvenue !';
       console.error('Erreur chargement profil :', err);
     }
-      });
+    if (await isAdmin(user.uid)) {
+      document.getElementById('adminCard').style.display = 'flex';
+    }
+  });
 
   document.getElementById('logoutBtn').addEventListener('click', async () => {
     await signOut(auth);
