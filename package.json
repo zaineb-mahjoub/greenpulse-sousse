@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:rules": "firebase emulators:exec --only firestore --project demo-greenpulse \"node --test tests/\""
+        "test:rules": "firebase emulators:exec --only firestore --project demo-greenpulse \"node --test tests/firestore.rules.test.mjs\""   
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^6.0.0",

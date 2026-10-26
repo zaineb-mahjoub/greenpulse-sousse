@@ -9,15 +9,15 @@ jobs:
   rules-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 24 
           cache: npm
 
       # The Firestore emulator runs on Java.
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
@@ -26,3 +26,4 @@ jobs:
 
       - name: Run security-rules tests against the Firestore emulator
         run: npm run test:rules
+        
